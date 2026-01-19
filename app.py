@@ -1,7 +1,7 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-from fpdf import FPDF
+from fpdf import FPDF, XPos, YPos
 import qrcode
 import io
 
@@ -59,7 +59,7 @@ with st.form("sky_form", clear_on_submit=False):
         ["Drive", "Classroom", "Docs", "Sheets", "Forms", "Meet", "Google Gemini AI"]
     )
     
-    uso_gemini = ""
+    uso_gemini = []
     if "Google Gemini AI" in apps:
         uso_gemini = st.multiselect(
             "¿Para qué ha utilizado Gemini AI?",
@@ -75,7 +75,7 @@ if btn_submit:
         try:
             full_telf = f"{cod_p}{num_t}"
             
-            # 1. GENERAR QR Y PDF
+            # 1. GENERAR QR Y PDF (Corrección de Deprecation)
             qr = qrcode.make(f"Registro: {nom} {ape} | ID: {ced_t}-{ced_n}")
             buf = io.BytesIO()
             qr.save(buf, format='PNG')
@@ -83,11 +83,11 @@ if btn_submit:
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("helvetica", "B", 16)
-            pdf.cell(0, 10, "COMPROBANTE - SKY GEN AI", ln=True, align="C")
-            pdf.set_font("helvetica", size=12)
+            pdf.cell(0, 10, "COMPROBANTE - SKY GEN AI", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
             pdf.ln(10)
-            pdf.cell(0, 10, f"Instructor: {nom} {ape}", ln=True)
-            pdf.cell(0, 10, f"WhatsApp: {full_telf}", ln=True)
+            pdf.set_font("helvetica", size=12)
+            pdf.cell(0, 10, f"Instructor: {nom} {ape}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.cell(0, 10, f"WhatsApp: {full_telf}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.image(buf, x=75, y=70, w=60)
             pdf_out = pdf.output()
 
