@@ -1,4 +1,4 @@
 pandas
+st-gsheets-connection
 fpdf
 qrcode
-st-gsheets-connection
