@@ -3,7 +3,6 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from fpdf import FPDF
 import qrcode
-from PIL import Image
 import io
 
 # --- ESTÉTICA SKY GEN AI ---
@@ -31,7 +30,7 @@ if not st.session_state['auth']:
         else: st.error("Acceso denegado.")
     st.stop()
 
-# --- FORMULARIO ---
+# --- FORMULARIO DE INSCRIPCIÓN ---
 try: st.image("logo.png", width=350)
 except: pass
 st.title("Planilla de Inscripción")
@@ -45,7 +44,6 @@ with st.form("sky_form", clear_on_submit=False):
     with c3: ced_t = st.selectbox("Nacionalidad", ["V", "E"])
     with c4: ced_n = st.text_input("Número de Cédula")
     
-    # SECCIÓN TELÉFONO SOLICITADA
     st.write("📱 **Contacto WhatsApp**")
     c5, c6 = st.columns([1, 2])
     with c5: cod_p = st.selectbox("País", ["+58", "+1", "+57", "+34", "+507"])
@@ -53,7 +51,20 @@ with st.form("sky_form", clear_on_submit=False):
     
     mail = st.text_input("Correo Gmail (@gmail.com)")
     materia = st.text_input("Asignaturas que dicta")
-    normas = st.text_area("Normas técnicas de apoyo")
+    normas = st.text_area("Normas técnicas de apoyo a su asignatura")
+
+    st.subheader("🛠️ Diagnóstico Tecnológico")
+    apps = st.multiselect(
+        "¿Qué aplicaciones de Google Workspace ha utilizado en los últimos 3 meses?",
+        ["Drive", "Classroom", "Docs", "Sheets", "Forms", "Meet", "Google Gemini AI"]
+    )
+    
+    uso_gemini = ""
+    if "Google Gemini AI" in apps:
+        uso_gemini = st.multiselect(
+            "¿Para qué ha utilizado Gemini AI?",
+            ["Guiones de clase", "Generación de imágenes", "Investigación", "Material didáctico"]
+        )
     
     btn_submit = st.form_submit_button("REGISTRAR INSCRIPCIÓN")
 
@@ -76,7 +87,6 @@ if btn_submit:
             pdf.set_font("helvetica", size=12)
             pdf.ln(10)
             pdf.cell(0, 10, f"Instructor: {nom} {ape}", ln=True)
-            pdf.cell(0, 10, f"Cédula: {ced_t}-{ced_n}", ln=True)
             pdf.cell(0, 10, f"WhatsApp: {full_telf}", ln=True)
             pdf.image(buf, x=75, y=70, w=60)
             pdf_out = pdf.output()
@@ -84,10 +94,10 @@ if btn_submit:
             # 2. GUARDAR EN GOOGLE SHEETS
             new_row = pd.DataFrame([{
                 "Nombres": nom, "Apellidos": ape, "Cedula": f"{ced_t}-{ced_n}", 
-                "WhatsApp": full_telf, "Email": mail, "Asignaturas": materia, "Normas": normas
+                "WhatsApp": full_telf, "Email": mail, "Asignaturas": materia, 
+                "Normas": normas, "Apps_Google": ", ".join(apps), "Uso_Gemini": ", ".join(uso_gemini)
             }])
             
-            # Forzamos lectura para verificar conexión
             df_old = conn.read()
             df_final = pd.concat([df_old, new_row], ignore_index=True)
             conn.update(data=df_final)
