@@ -2,3 +2,4 @@ pandas
 st-gsheets-connection
 fpdf
 qrcode
+pillow
