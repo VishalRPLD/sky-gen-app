@@ -1,5 +1,5 @@
 pandas
 st-gsheets-connection
-fpdf
+fpdf2
 qrcode
 pillow
