@@ -15,7 +15,7 @@ from email import encoders
 # --- CONFIGURACIÓN ADAPTATIVA ---
 st.set_page_config(page_title="Sky Gen AI", page_icon="✈️", layout="centered")
 
-# Estilos CSS para botones adaptativos y móviles
+# CSS para botones móviles y estética
 st.markdown("""
     <style>
     div.stButton > button:first-child { width: 100%; border-radius: 10px; height: 3.5em; font-weight: bold; background-color: #2E62A1; color: white; }
@@ -27,19 +27,22 @@ st.markdown("""
 # --- CONEXIÓN ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-except: pass
+except:
+    pass
 
-# --- FUNCIONES ---
+# --- GENERADOR DE ID ÚNICO ---
 def generar_id():
+    # Genera 6 caracteres alfanuméricos (Letras y Números)
     return ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
 
+# --- FUNCIÓN DE CORREO ---
 def enviar_correo(destinatario, datos, pdf_bytes):
     try:
         msg = MIMEMultipart()
         msg['From'] = st.secrets["gmail"]["user"]
         msg['To'] = destinatario
-        msg['Subject'] = f"🛫 Inscripción Exitosa Sky Gen AI - ID: {datos['id']}"
-        cuerpo = f"Estimado(a) {datos['nom']},\n\nSu inscripción fue exitosa.\nID Único: {datos['id']}\nClave del PDF: SkyCrew2026"
+        msg['Subject'] = f"🛫 Inscripción Sky Gen AI - ID: {datos['id']}"
+        cuerpo = f"Hola {datos['nom']},\n\nSu ID único es: {datos['id']}\nClave del PDF: SkyCrew2026"
         msg.attach(MIMEText(cuerpo, 'plain'))
         part = MIMEBase('application', 'octet-stream')
         part.set_payload(pdf_bytes)
@@ -75,25 +78,25 @@ with st.form("sky_form", clear_on_submit=False):
     ced = st.text_input("Cédula")
     mail = st.text_input("Correo Gmail")
     mat = st.text_input("Asignatura")
-    normas = st.text_area("Normas técnicas")
-    apps = st.multiselect("Apps Google:", ["Drive", "Classroom", "Gemini AI", "Sheets"])
+    apps = st.multiselect("Apps Google:", ["Drive", "Classroom", "Gemini AI", "Sheets", "Docs", "Forms"])
     submit = st.form_submit_button("REGISTRAR INSCRIPCIÓN")
 
 if submit:
     if not mail or not nom:
-        st.error("❌ Complete los datos obligatorios.")
+        st.error("❌ Por favor complete los datos básicos.")
     else:
         id_u = generar_id()
         
-        # 1. GENERAR PDF Y QR (Con manejo de errores para protección)
+        # 1. GENERAR QR Y PDF (Independiente de la Base de Datos)
         qr_io = io.BytesIO()
-        qrcode.make(f"ID: {id_u}\nInstructor: {nom} {ape}\nMat: {mat}").save(qr_io, format='PNG')
+        # El QR ahora contiene toda la información para validación offline
+        qr_txt = f"ID: {id_u}\nInst: {nom} {ape}\nCed: {ced}\nMat: {mat}"
+        qrcode.make(qr_txt).save(qr_io, format='PNG')
         
         pdf = FPDF()
-        try:
-            # Intentar poner protección si la librería fpdf2 está presente
-            pdf.set_protection(user_pass="SkyCrew2026", owner_pass="SkyCrew2026")
-        except: pass 
+        # Intentamos protección (solo funciona con fpdf2)
+        try: pdf.set_protection(user_pass="SkyCrew2026", owner_pass="SkyCrew2026")
+        except: pass
         
         pdf.add_page()
         try: pdf.image("logo.png", x=85, y=10, w=40)
@@ -103,29 +106,29 @@ if submit:
         pdf.cell(0, 10, "COMPROBANTE OFICIAL - SKY GEN AI", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
         pdf.ln(10)
         pdf.set_font("helvetica", size=12)
-        pdf.cell(0, 10, f"ID INSCRIPCIÓN: {id_u}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(0, 10, f"ID ÚNICO: {id_u}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.cell(0, 10, f"Instructor: {nom} {ape}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.cell(0, 10, f"Cédula: {ced}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.cell(0, 10, f"Materia: {mat}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.image(qr_io, x=75, y=110, w=60)
+        pdf.image(qr_io, x=75, y=120, w=60)
         pdf_bytes = bytes(pdf.output())
 
-        # 2. MOSTRAR RESULTADOS INMEDIATOS
-        st.success(f"✅ ¡Registro Exitoso! ID: {id_u}")
-        st.download_button("📥 DESCARGAR PDF (Clave: SkyCrew2026)", data=pdf_bytes, file_name=f"SkyGen_{id_u}.pdf", mime="application/pdf")
+        # 2. MOSTRAR RESULTADOS AL USUARIO
+        st.success(f"✅ ¡Inscripción Generada! ID: {id_u}")
+        st.download_button("📥 DESCARGAR COMPROBANTE (Clave: SkyCrew2026)", data=pdf_bytes, file_name=f"SkyGen_{id_u}.pdf", mime="application/pdf")
         
         # WhatsApp con TODOS los campos
         wa_msg = f"Inscripcion Sky Gen AI%0AID: {id_u}%0AInstructor: {nom} {ape}%0ACedula: {ced}%0AMateria: {mat}%0AApps: {', '.join(apps)}"
         st.markdown(f'<a href="https://wa.me/584126168188?text={wa_msg}" target="_blank" class="wa-button">📲 ENVIAR DATOS AL DIRECTOR</a>', unsafe_allow_html=True)
 
-        # 3. PROCESOS DE FONDO
+        # 3. PROCESO DE FONDO (Si falla la DB, no bloquea al usuario)
         try:
             new_row = pd.DataFrame([{"Nombres": nom, "Apellidos": ape, "Cedula": ced, "Email": mail, "Asignaturas": mat, "ID_Unico": id_u}])
-            df_old = conn.read(worksheet="Sheet1")
+            df_old = conn.read(worksheet="Sheet1", ttl=0) # ttl=0 para forzar lectura fresca
             conn.update(worksheet="Sheet1", data=pd.concat([df_old, new_row], ignore_index=True))
-            st.info("☁️ Sincronizado con Base de Datos.")
+            st.info("☁️ Base de Datos actualizada.")
         except:
-            st.warning("⚠️ Base de Datos en mantenimiento (Error 404).")
+            st.warning("⚠️ Base de datos en mantenimiento (Error 404). El registro se procesó localmente.")
 
         enviar_correo(mail, {"nom": nom, "id": id_u}, pdf_bytes)
         st.balloons()
