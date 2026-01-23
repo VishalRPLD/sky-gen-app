@@ -149,9 +149,11 @@ with tab_ins:
                         "Apps_Google": ", ".join(apps), "Uso_Gemini": uso_gemini, "ID_Unico": id_u,
                         "Cliente": conf['cliente'], "Curso": conf['curso']
                     }])
-                    df_o = conn.read(worksheet="Sheet1")
-                    conn.update(worksheet="Sheet1", data=pd.concat([df_o, nr], ignore_index=True))
-                    st.success(f"✅ ¡Éxito! ID: {id_u}")
+             conn.update(
+    spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], 
+    worksheet="Sheet1", 
+    data=pd.concat([df_o, nr], ignore_index=True)
+)
                     st.download_button("📥 DESCARGAR PDF", data=pdf_bytes, file_name=f"SkyGen_{id_u}.pdf", mime="application/pdf")
                     wa_url = f"https://wa.me/584126168188?text=Registro%20ID:%20{id_u}%0ACliente:%20{conf['cliente']}%0AInst:%20{nom}"
                     st.markdown(f'<a href="{wa_url}" target="_blank" class="wa-button">📲 NOTIFICAR AL DIRECTOR</a>', unsafe_allow_html=True)
