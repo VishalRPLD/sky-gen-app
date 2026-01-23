@@ -4,120 +4,98 @@ import pandas as pd
 from fpdf import FPDF, XPos, YPos
 import qrcode
 import io
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 
-# --- CONFIGURACIÓN ESTÉTICA ---
+# --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Sky Gen AI", page_icon="✈️")
 
-# --- CONEXIÓN A BASE DE DATOS ---
+# --- CONEXIÓN ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-except Exception:
-    st.error("⚠️ Error de enlace inicial. Verifique los 'Secrets' en Streamlit.")
+except:
+    st.error("⚠️ Error de base de datos.")
 
-# --- CONTROL DE ACCESO ---
-if 'auth' not in st.session_state:
-    st.session_state['auth'] = False
+# --- FUNCIÓN DE ENVÍO DE CORREO ---
+def enviar_correo(destinatario, nombre_instructor, pdf_content):
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = st.secrets["gmail"]["user"]
+        msg['To'] = destinatario
+        msg['Subject'] = f"🛫 Bienvenido a Sky Gen AI - {nombre_instructor}"
+        
+        cuerpo = f"Estimado(a) {nombre_instructor},\n\nSu registro en el programa Sky Gen AI ha sido exitoso. Adjunto encontrará su comprobante oficial.\n\nAtentamente,\nProf. Lakha."
+        msg.attach(MIMEText(cuerpo, 'plain'))
+        
+        part = MIMEBase('application', 'octet-stream')
+        part.set_payload(pdf_content)
+        encoders.encode_base64(part)
+        part.add_header('Content-Disposition', f"attachment; filename= Comprobante_SkyGen.pdf")
+        msg.attach(part)
+        
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(st.secrets["gmail"]["user"], st.secrets["gmail"]["password"])
+        server.send_message(msg)
+        server.quit()
+        return True
+    except:
+        return False
 
+# --- ACCESO ---
+if 'auth' not in st.session_state: st.session_state['auth'] = False
 if not st.session_state['auth']:
     try: st.image("logo.png", width=250)
     except: pass
     st.title("🔐 Acceso Sky Gen AI")
     pwd = st.text_input("Contraseña Maestra:", type="password")
     if st.button("Ingresar"):
-        if pwd == "SkyCrew2026":
-            st.session_state['auth'] = True
-            st.rerun()
-        else: st.error("Acceso denegado.")
+        if pwd == "SkyCrew2026": st.session_state['auth'] = True; st.rerun()
     st.stop()
 
-# --- FORMULARIO DE INSCRIPCIÓN ---
-try: st.image("logo.png", width=350)
-except: pass
+# --- FORMULARIO ---
 st.title("Planilla de Inscripción")
-
-with st.form("sky_form", clear_on_submit=False):
-    # Fila 1: Datos Personales
+with st.form("sky_form"):
     c1, c2 = st.columns(2)
     with c1: nom = st.text_input("Nombres")
     with c2: ape = st.text_input("Apellidos")
-    
-    # Fila 2: Identificación
-    c3, c4 = st.columns([1, 2])
-    with c3: ced_t = st.selectbox("Nacionalidad", ["V", "E"])
-    with c4: ced_n = st.text_input("Número de Cédula")
-    
-    # Fila 3: WhatsApp (Formato solicitado)
-    st.write("📱 **Contacto WhatsApp**")
-    c5, c6 = st.columns([1, 2])
-    with c5: cod_p = st.selectbox("Código", ["+58", "+1", "+57", "+34", "+507"])
-    with c6: num_t = st.text_input("Número (sin el 0)", placeholder="4121234567")
-    
-    # Fila 4: Académico
-    mail = st.text_input("Correo Gmail (@gmail.com)")
-    materia = st.text_input("Asignaturas que dicta")
-    normas = st.text_area("Normas técnicas de apoyo a su asignatura")
+    ced = st.text_input("Cédula")
+    mail = st.text_input("Correo Gmail")
+    btn = st.form_submit_button("REGISTRAR")
 
-    # Diagnóstico Tecnológico
-    st.subheader("🛠️ Diagnóstico Google Workspace")
-    apps = st.multiselect(
-        "¿Qué aplicaciones de Google ha utilizado en los últimos 3 meses?",
-        ["Drive", "Classroom", "Docs", "Sheets", "Forms", "Meet", "Google Gemini AI"]
-    )
-    
-    uso_gemini = []
-    if "Google Gemini AI" in apps:
-        uso_gemini = st.multiselect(
-            "¿Para qué ha utilizado Gemini AI?",
-            ["Guiones de clase", "Generación de imágenes", "Investigación", "Material didáctico"]
-        )
-    
-    btn_submit = st.form_submit_button("REGISTRAR INSCRIPCIÓN")
-
-# --- PROCESAMIENTO DE DATOS ---
-if btn_submit:
-    if not mail.endswith("@gmail.com") or not num_t:
-        st.error("❌ Verifique su correo Gmail y su número de teléfono.")
+if btn:
+    if "@" not in mail: st.error("Email inválido")
     else:
-        try:
-            full_telf = f"{cod_p}{num_t}"
-            
-            # 1. GENERAR PDF (Sintaxis actualizada)
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("helvetica", "B", 16)
-            pdf.cell(0, 10, "COMPROBANTE - SKY GEN AI", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
-            pdf.ln(10)
-            pdf.set_font("helvetica", size=12)
-            pdf.cell(0, 10, f"Instructor: {nom} {ape}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            pdf.cell(0, 10, f"ID: {ced_t}-{ced_n}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            pdf.cell(0, 10, f"WhatsApp: {full_telf}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            
-            # QR
-            qr = qrcode.make(f"SkyGenAI: {nom} {ape} | {full_telf}")
-            qr_buf = io.BytesIO()
-            qr.save(qr_buf, format='PNG')
-            pdf.image(qr_buf, x=75, y=80, w=60)
-            pdf_bytes = pdf.output()
+        # 1. PDF
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("helvetica", "B", 16)
+        pdf.cell(0, 10, "REGISTRO SKY GEN AI", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+        pdf.set_font("helvetica", size=12)
+        pdf.cell(0, 10, f"Instructor: {nom} {ape}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        
+        qr = qrcode.make(f"SkyGen: {nom}")
+        buf = io.BytesIO()
+        qr.save(buf, format='PNG')
+        pdf.image(buf, x=75, y=50, w=50)
+        pdf_out = pdf.output()
 
-            # 2. GUARDAR EN GOOGLE SHEETS
-            new_row = pd.DataFrame([{
-                "Nombres": nom, "Apellidos": ape, "Cedula": f"{ced_t}-{ced_n}", 
-                "WhatsApp": full_telf, "Email": mail, "Asignaturas": materia, 
-                "Normas": normas, "Apps_Google": ", ".join(apps), "Uso_Gemini": ", ".join(uso_gemini)
-            }])
-            
-            df_old = conn.read()
-            df_final = pd.concat([df_old, new_row], ignore_index=True)
-            conn.update(data=df_final)
-            
-            st.success("✅ ¡Inscripción guardada exitosamente!")
-            
-            # 3. ACCIONES FINALES
-            st.download_button("📥 DESCARGAR REGISTRO (PDF)", data=pdf_bytes, file_name=f"Inscripcion_{ced_n}.pdf")
-            
-            wa_msg = f"Inscripción%20Sky%20Gen%20AI:%20{nom}%20{ape}%20({full_telf})"
-            st.markdown(f'<a href="https://wa.me/584126168188?text={wa_msg}" target="_blank"><button style="background-color: #25D366; color: white; padding: 12px; border: none; border-radius: 8px; width: 100%; cursor: pointer; font-weight: bold;">📲 ENVIAR POR WHATSAPP AL DIRECTOR</button></a>', unsafe_allow_html=True)
-            st.balloons()
-            
-        except Exception as e:
-            st.error(f"Falla de sistema: {e}. Revise los permisos de su Hoja de Cálculo.")
+        # 2. SHEETS
+        try:
+            df = conn.read()
+            new_data = pd.DataFrame([{"Nombres": nom, "Apellidos": ape, "Cedula": ced, "Email": mail}])
+            conn.update(data=pd.concat([df, new_data], ignore_index=True))
+            st.success("✅ Datos en la nube.")
+        except: st.warning("⚠️ Error en Sheets.")
+
+        # 3. ENVIAR CORREO
+        if enviar_correo(mail, nom, pdf_out):
+            st.success(f"📧 Comprobante enviado a {mail}")
+        else:
+            st.error("❌ No se pudo enviar el correo.")
+
+        st.download_button("📥 Descargar PDF", data=pdf_out, file_name="comprobante.pdf")
+        st.balloons()
