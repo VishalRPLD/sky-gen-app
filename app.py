@@ -5,16 +5,16 @@ from fpdf import FPDF, XPos, YPos
 import qrcode
 import io
 
-# --- ESTÉTICA SKY GEN AI ---
+# --- CONFIGURACIÓN ESTÉTICA ---
 st.set_page_config(page_title="Sky Gen AI", page_icon="✈️")
 
-# --- CONEXIÓN ---
+# --- CONEXIÓN A BASE DE DATOS ---
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception:
-    st.error("⚠️ Error de enlace inicial con la base de datos.")
+    st.error("⚠️ Error de enlace inicial. Verifique los 'Secrets' en Streamlit.")
 
-# --- ACCESO ---
+# --- CONTROL DE ACCESO ---
 if 'auth' not in st.session_state:
     st.session_state['auth'] = False
 
@@ -36,26 +36,31 @@ except: pass
 st.title("Planilla de Inscripción")
 
 with st.form("sky_form", clear_on_submit=False):
+    # Fila 1: Datos Personales
     c1, c2 = st.columns(2)
     with c1: nom = st.text_input("Nombres")
     with c2: ape = st.text_input("Apellidos")
     
+    # Fila 2: Identificación
     c3, c4 = st.columns([1, 2])
     with c3: ced_t = st.selectbox("Nacionalidad", ["V", "E"])
     with c4: ced_n = st.text_input("Número de Cédula")
     
+    # Fila 3: WhatsApp (Formato solicitado)
     st.write("📱 **Contacto WhatsApp**")
     c5, c6 = st.columns([1, 2])
-    with c5: cod_p = st.selectbox("País", ["+58", "+1", "+57", "+34", "+507"])
+    with c5: cod_p = st.selectbox("Código", ["+58", "+1", "+57", "+34", "+507"])
     with c6: num_t = st.text_input("Número (sin el 0)", placeholder="4121234567")
     
+    # Fila 4: Académico
     mail = st.text_input("Correo Gmail (@gmail.com)")
     materia = st.text_input("Asignaturas que dicta")
     normas = st.text_area("Normas técnicas de apoyo a su asignatura")
 
-    st.subheader("🛠️ Diagnóstico Tecnológico")
+    # Diagnóstico Tecnológico
+    st.subheader("🛠️ Diagnóstico Google Workspace")
     apps = st.multiselect(
-        "¿Qué aplicaciones de Google Workspace ha utilizado en los últimos 3 meses?",
+        "¿Qué aplicaciones de Google ha utilizado en los últimos 3 meses?",
         ["Drive", "Classroom", "Docs", "Sheets", "Forms", "Meet", "Google Gemini AI"]
     )
     
@@ -68,6 +73,7 @@ with st.form("sky_form", clear_on_submit=False):
     
     btn_submit = st.form_submit_button("REGISTRAR INSCRIPCIÓN")
 
+# --- PROCESAMIENTO DE DATOS ---
 if btn_submit:
     if not mail.endswith("@gmail.com") or not num_t:
         st.error("❌ Verifique su correo Gmail y su número de teléfono.")
@@ -75,11 +81,7 @@ if btn_submit:
         try:
             full_telf = f"{cod_p}{num_t}"
             
-            # 1. GENERAR QR Y PDF (Corrección de Deprecation)
-            qr = qrcode.make(f"Registro: {nom} {ape} | ID: {ced_t}-{ced_n}")
-            buf = io.BytesIO()
-            qr.save(buf, format='PNG')
-            
+            # 1. GENERAR PDF (Sintaxis actualizada)
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("helvetica", "B", 16)
@@ -87,9 +89,15 @@ if btn_submit:
             pdf.ln(10)
             pdf.set_font("helvetica", size=12)
             pdf.cell(0, 10, f"Instructor: {nom} {ape}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.cell(0, 10, f"ID: {ced_t}-{ced_n}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.cell(0, 10, f"WhatsApp: {full_telf}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            pdf.image(buf, x=75, y=70, w=60)
-            pdf_out = pdf.output()
+            
+            # QR
+            qr = qrcode.make(f"SkyGenAI: {nom} {ape} | {full_telf}")
+            qr_buf = io.BytesIO()
+            qr.save(qr_buf, format='PNG')
+            pdf.image(qr_buf, x=75, y=80, w=60)
+            pdf_bytes = pdf.output()
 
             # 2. GUARDAR EN GOOGLE SHEETS
             new_row = pd.DataFrame([{
@@ -102,11 +110,13 @@ if btn_submit:
             df_final = pd.concat([df_old, new_row], ignore_index=True)
             conn.update(data=df_final)
             
-            st.success("✅ ¡Inscripción guardada en la nube!")
-            st.download_button("📥 DESCARGAR REGISTRO (PDF)", data=pdf_out, file_name=f"Inscripcion_{ced_n}.pdf")
+            st.success("✅ ¡Inscripción guardada exitosamente!")
             
-            link_wa = f"https://wa.me/584126168188?text=Inscripción%20Exitosa:%20{nom}%20{ape}%20({full_telf})"
-            st.markdown(f'<a href="{link_wa}" target="_blank"><button style="background-color: #25D366; color: white; padding: 12px; border: none; border-radius: 8px; width: 100%; cursor: pointer; font-weight: bold;">📲 ENVIAR POR WHATSAPP AL DIRECTOR</button></a>', unsafe_allow_html=True)
+            # 3. ACCIONES FINALES
+            st.download_button("📥 DESCARGAR REGISTRO (PDF)", data=pdf_bytes, file_name=f"Inscripcion_{ced_n}.pdf")
+            
+            wa_msg = f"Inscripción%20Sky%20Gen%20AI:%20{nom}%20{ape}%20({full_telf})"
+            st.markdown(f'<a href="https://wa.me/584126168188?text={wa_msg}" target="_blank"><button style="background-color: #25D366; color: white; padding: 12px; border: none; border-radius: 8px; width: 100%; cursor: pointer; font-weight: bold;">📲 ENVIAR POR WHATSAPP AL DIRECTOR</button></a>', unsafe_allow_html=True)
             st.balloons()
             
         except Exception as e:
