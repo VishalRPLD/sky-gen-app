@@ -1,5 +1,6 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
+conn = st.connection("gsheets", type=GSheetsConnection)
 import pandas as pd
 from fpdf import FPDF, XPos, YPos
 import qrcode
