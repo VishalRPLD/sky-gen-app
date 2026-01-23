@@ -78,9 +78,11 @@ with tab_admin:
             new_fecha = st.text_input("Fecha:", value=conf.get("fecha"))
             if st.form_submit_button("ACTUALIZAR CONFIGURACIÓN"):
                 new_df = pd.DataFrame([{"cliente": new_cliente, "curso": new_curso, "capacitacion": new_cap, "fecha": new_fecha}])
-                conn.update(worksheet="Config", data=new_df)
-                st.success("✅ Configuración guardada.")
-                st.rerun()
+                conn.update(
+    spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], 
+    worksheet="Config", 
+    data=new_df
+)
 
 # --- PESTAÑA INSCRIPCIÓN ---
 with tab_ins:
